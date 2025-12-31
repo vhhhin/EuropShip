@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { AgentProvider } from '@/contexts/AgentContext';
-import { TimeTrackingProvider } from '@/contexts/TimeTrackingContext';
+import { TimeTrackingProvider } from "@/contexts/TimeTrackingContext";
 import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardOverview from "./pages/dashboard/DashboardOverview";

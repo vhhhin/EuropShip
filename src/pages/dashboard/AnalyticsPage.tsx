@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLeads } from '@/hooks/useLeads';
-import { useTimeTracking } from '@/hooks/useTimeTracking';
+import { useTimeTracking } from '@/contexts/TimeTrackingContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LEAD_SOURCES, LEAD_STATUSES, LeadSource, LeadStatus, SOURCE_COLORS, STATUS_COLORS } from '@/types/lead';

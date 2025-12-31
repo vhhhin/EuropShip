@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import AgentDashboard from './AgentDashboard';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
 import { useAgents } from '@/contexts/AgentContext';
 import { useLeadDistribution } from '@/hooks/useLeadDistribution';
@@ -146,31 +145,32 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 // ============================================
-// ADMIN DASHBOARD COMPONENT
+// MAIN COMPONENT
 // ============================================
 
-function AdminDashboard() {
+export default function DashboardOverview() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { getStats, getAllLeads } = useLeads();
   const { agents } = useAgents();
-  
-  let distStats = { unassignedLeads: 0, availableCapacity: 0, agentsAvailable: 0, agentsAtCapacity: 0, utilizationRate: 0 };
-  let agentStats: any[] = [];
-  let forceRedistributionFn = () => ({ distributed: 0, remaining: 0 });
-  let unassignedLeads: any[] = [];
-
-  try {
-    const distribution = useLeadDistribution();
-    distStats = distribution.getDistributionStats();
-    agentStats = distribution.getAgentDistributionStats();
-    forceRedistributionFn = distribution.forceRedistribution;
-    unassignedLeads = distribution.getUnassignedLeads();
-  } catch {}
+  const { 
+    getDistributionStats, 
+    getAgentDistributionStats, 
+    forceRedistribution,
+    getUnassignedLeads 
+  } = useLeadDistribution();
   
   const stats = getStats();
   const allLeads = getAllLeads();
+  const isAdmin = user?.role === 'ADMIN';
+  const distStats = getDistributionStats();
+  const agentStats = getAgentDistributionStats();
+  const unassignedLeads = getUnassignedLeads();
 
+  // ============================================
+  // LEADS DATA
+  // ============================================
+  
   const leadsKPIs = useMemo(() => ({
     total: stats.total,
     newLeads: stats.byStatus['new'] || 0,
@@ -209,6 +209,10 @@ function AdminDashboard() {
     }));
   }, [stats]);
 
+  // ============================================
+  // AGENTS DATA
+  // ============================================
+
   const agentKPIs = useMemo(() => ({
     total: agents.filter(a => a.status === 'active').length,
     available: distStats.agentsAvailable,
@@ -222,18 +226,26 @@ function AdminDashboard() {
     color: a.status === 'full' ? '#ef4444' : a.status === 'busy' ? '#f97316' : '#22c55e',
   }));
 
-  const handleRedistribute = () => forceRedistributionFn();
+  const handleRedistribute = () => {
+    const result = forceRedistribution();
+    console.log(`Redistributed ${result.distributed} leads, ${result.remaining} remaining`);
+  };
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Welcome */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Welcome back, {user?.displayName?.split(' ')[0] || 'Admin'}! 👋
+            Welcome back, {user?.displayName?.split(' ')[0] || 'User'}! 👋
           </h1>
           <p className="text-muted-foreground text-sm">Here's your dashboard overview</p>
         </div>
-        {unassignedLeads.length > 0 && (
+        {isAdmin && unassignedLeads.length > 0 && (
           <Button onClick={handleRedistribute} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
             Redistribute ({unassignedLeads.length})
@@ -241,13 +253,18 @@ function AdminDashboard() {
         )}
       </div>
 
-      {/* Leads Overview */}
+      {/* ============================================ */}
+      {/* SECTION 1: LEADS OVERVIEW */}
+      {/* ============================================ */}
+      
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">Leads Overview</h2>
           <Badge variant="outline" className="text-xs">Live</Badge>
         </div>
+
+        {/* Leads KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KPICard title="Total Leads" value={leadsKPIs.total} icon={Users} color="primary" onClick={() => navigate('/dashboard/leads')} />
           <KPICard title="New" value={leadsKPIs.newLeads} icon={UserPlus} color="accent" />
@@ -262,14 +279,27 @@ function AdminDashboard() {
           <KPICard title="Meetings" value={leadsKPIs.meetingBooked} icon={Calendar} color="success" onClick={() => navigate('/dashboard/meetings')} />
           <KPICard title="Qualified" value={leadsKPIs.qualified} icon={CheckCircle2} color="success" />
         </div>
+
+        {/* Leads Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Trend Chart */}
           <Card className="glass-card lg:col-span-2">
-            <CardHeader className="py-3"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Lead Trends</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                Lead Trends (7 Days)
+              </CardTitle>
+            </CardHeader>
             <CardContent className="pb-3">
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData}>
-                    <defs><linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/><stop offset="95%" stopColor="#f97316" stopOpacity={0}/></linearGradient></defs>
+                    <defs>
+                      <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                     <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
@@ -280,19 +310,32 @@ function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Status Pie */}
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Status Distribution</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Status Distribution</CardTitle>
+            </CardHeader>
             <CardContent className="pb-3">
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart><Pie data={statusData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value">{statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Pie><Tooltip content={<CustomTooltip />} /></PieChart>
+                  <PieChart>
+                    <Pie data={statusData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value">
+                      {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Source Bar */}
         <Card className="glass-card">
-          <CardHeader className="py-3"><CardTitle className="text-sm">Leads by Source</CardTitle></CardHeader>
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Leads by Source</CardTitle>
+          </CardHeader>
           <CardContent className="pb-3">
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -300,7 +343,9 @@ function AdminDashboard() {
                   <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} width={80} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>{sourceData.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Bar>
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {sourceData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -308,71 +353,129 @@ function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Agents Overview */}
-      <Separator />
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users2 className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-foreground">Agents Overview</h2>
-            <Badge variant="outline" className="text-xs">{distStats.availableCapacity} slots</Badge>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/agents')}>Manage →</Button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="Active Agents" value={agentKPIs.total} icon={Users2} color="primary" />
-          <KPICard title="Available" value={agentKPIs.available} icon={UserCheck} color="success" />
-          <KPICard title="At Capacity" value={agentKPIs.full} icon={UserX} color={agentKPIs.full > 0 ? 'destructive' : 'success'} />
-          <KPICard title="Utilization" value={`${agentKPIs.avgUtil}%`} icon={BarChart3} color={agentKPIs.avgUtil > 80 ? 'warning' : 'success'} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Leads per Agent</CardTitle></CardHeader>
-            <CardContent className="pb-3">
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={agentChartData}>
-                    <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                    <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="leads" radius={[4, 4, 0, 0]}>{agentChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+      {/* ============================================ */}
+      {/* SECTION 2: AGENTS OVERVIEW (Admin Only) */}
+      {/* ============================================ */}
+      
+      {isAdmin && (
+        <>
+          <Separator />
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users2 className="w-5 h-5 text-accent" />
+                <h2 className="text-lg font-semibold text-foreground">Agents Overview</h2>
+                <Badge variant="outline" className="text-xs">
+                  {distStats.availableCapacity} slots available
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
-          <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Capacity Utilization</CardTitle></CardHeader>
-            <CardContent className="pb-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {agentStats.slice(0, 4).map((agent) => (
-                  <div key={agent.id} className="flex flex-col items-center">
-                    <ProgressCircle value={agent.utilization} />
-                    <p className="text-xs font-medium text-foreground mt-2">{agent.firstName || 'Agent'}</p>
-                    <p className="text-[10px] text-muted-foreground">{agent.currentLeads}/{agent.maxDailyLeads}</p>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/agents')}>
+                Manage Agents →
+              </Button>
+            </div>
+
+            {/* Agents KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <KPICard title="Active Agents" value={agentKPIs.total} icon={Users2} color="primary" />
+              <KPICard title="Available" value={agentKPIs.available} icon={UserCheck} color="success" subtitle="Can take more leads" />
+              <KPICard title="At Capacity" value={agentKPIs.full} icon={UserX} color={agentKPIs.full > 0 ? 'destructive' : 'success'} />
+              <KPICard title="Utilization" value={`${agentKPIs.avgUtil}%`} icon={BarChart3} color={agentKPIs.avgUtil > 80 ? 'warning' : 'success'} />
+            </div>
+
+            {/* Agents Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Bar Chart */}
+              <Card className="glass-card">
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm">Leads per Agent</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={agentChartData}>
+                        <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="leads" radius={[4, 4, 0, 0]}>
+                          {agentChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                </CardContent>
+              </Card>
+
+              {/* Capacity Circles */}
+              <Card className="glass-card">
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm">Capacity Utilization</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {agentStats.slice(0, 4).map((agent) => (
+                      <div key={agent.id} className="flex flex-col items-center">
+                        <ProgressCircle value={agent.utilization} />
+                        <p className="text-xs font-medium text-foreground mt-2">{agent.firstName || 'Agent'}</p>
+                        <p className="text-[10px] text-muted-foreground">{agent.currentLeads}/{agent.maxDailyLeads}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Agent List */}
+            <Card className="glass-card">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Agent Status</CardTitle>
+              </CardHeader>
+              <CardContent className="pb-3">
+                <div className="space-y-2">
+                  {agentStats.map((agent) => (
+                    <div key={agent.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-semibold text-primary">
+                          {(agent.firstName?.charAt(0) || '') + (agent.lastName?.charAt(0) || '')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {agent.firstName || ''} {agent.lastName || ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{agent.email || ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-foreground">{agent.currentLeads}/{agent.maxDailyLeads}</p>
+                          <p className="text-[10px] text-muted-foreground">leads</p>
+                        </div>
+                        <div className="w-20">
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className={cn("h-full rounded-full", 
+                                agent.status === 'full' ? 'bg-destructive' :
+                                agent.status === 'busy' ? 'bg-warning' : 'bg-success'
+                              )}
+                              style={{ width: `${agent.utilization}%` }}
+                            />
+                          </div>
+                        </div>
+                        <Badge className={cn("text-xs w-16 justify-center",
+                          agent.status === 'full' ? 'bg-destructive/20 text-destructive' :
+                          agent.status === 'busy' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'
+                        )}>
+                          {agent.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
-}
-
-// ============================================
-// MAIN COMPONENT
-// ============================================
-
-export default function DashboardOverview() {
-  const { user } = useAuth();
-  
-  // Si c'est un agent, afficher le dashboard agent
-  if (user?.role !== 'ADMIN') {
-    return <AgentDashboard />;
-  }
-  
-  // Sinon, afficher le dashboard admin
-  return <AdminDashboard />;
 }

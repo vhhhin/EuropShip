@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTimeTracking } from '@/hooks/useTimeTracking';
+import { useTimeTracking } from '@/contexts/TimeTrackingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Pause, Clock, Calendar, Timer, Users } from 'lucide-react';
+import { Play, Square, Clock, Calendar, Timer, Users } from 'lucide-react';
 
 export default function TimeTrackingPage() {
   const { user } = useAuth();
@@ -12,27 +12,39 @@ export default function TimeTrackingPage() {
     isRunning, 
     elapsedTime, 
     startTimer, 
-    pauseTimer, 
+    stopTimer, 
     getTodayTime, 
     getAllSessions, 
-    getTimeByAgent,
+    getSessionsByAgent,
     formatTime 
   } = useTimeTracking();
 
   const isAdmin = user?.role === 'ADMIN';
-  const agentTimes = getTimeByAgent();
+  const isAgent = user?.role === 'AGENT';
   const allSessions = getAllSessions();
   const todayTime = getTodayTime();
 
-  // Group sessions by date for current user
-  const userSessions = allSessions.filter(s => s.agentId === user?.id);
-  const sessionsByDate = userSessions.reduce((acc, session) => {
-    if (!acc[session.date]) {
-      acc[session.date] = [];
-    }
-    acc[session.date].push(session);
-    return acc;
-  }, {} as Record<string, typeof allSessions>);
+  // Calculate agent times for admin view
+  const agentTimes = useMemo(() => {
+    if (!isAdmin) return {};
+    const times: Record<string, { agentName: string; totalSeconds: number }> = {};
+    allSessions.forEach(session => {
+      if (!times[session.agentId]) {
+        times[session.agentId] = {
+          agentName: session.agentName,
+          totalSeconds: 0,
+        };
+      }
+      times[session.agentId].totalSeconds += session.duration;
+    });
+    return times;
+  }, [isAdmin, allSessions]);
+
+  // Get user sessions
+  const userSessions = useMemo(() => {
+    if (!user?.id) return [];
+    return isAdmin ? allSessions : getSessionsByAgent(user.id);
+  }, [user?.id, isAdmin, allSessions, getSessionsByAgent]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -44,8 +56,8 @@ export default function TimeTrackingPage() {
         </p>
       </div>
 
-      {/* Timer Section (for Agents) */}
-      {!isAdmin && (
+      {/* Timer Section (for Agents only) */}
+      {isAgent && (
         <Card className="glass-card glow-primary">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -59,7 +71,7 @@ export default function TimeTrackingPage() {
               <div className="flex items-center gap-4">
                 <Button
                   size="lg"
-                  onClick={isRunning ? pauseTimer : startTimer}
+                  onClick={isRunning ? stopTimer : startTimer}
                   className={isRunning 
                     ? 'gradient-destructive text-destructive-foreground' 
                     : 'gradient-success text-success-foreground'
@@ -67,7 +79,7 @@ export default function TimeTrackingPage() {
                 >
                   {isRunning ? (
                     <>
-                      <Pause className="w-5 h-5 mr-2" />
+                      <Square className="w-5 h-5 mr-2" />
                       Stop Timer
                     </>
                   ) : (
@@ -150,7 +162,7 @@ export default function TimeTrackingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(isAdmin ? allSessions : userSessions).length === 0 ? (
+          {userSessions.length === 0 ? (
             <div className="text-center py-12">
               <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No sessions recorded yet</p>
@@ -167,9 +179,9 @@ export default function TimeTrackingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(isAdmin ? allSessions : userSessions)
+                {userSessions
                   .sort((a, b) => b.startTime - a.startTime)
-                  .slice(0, 20)
+                  .slice(0, 50)
                   .map((session) => (
                     <TableRow key={session.id} className="border-border">
                       {isAdmin && (
@@ -182,10 +194,7 @@ export default function TimeTrackingPage() {
                         {new Date(session.startTime).toLocaleTimeString()}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {session.endTime 
-                          ? new Date(session.endTime).toLocaleTimeString()
-                          : '-'
-                        }
+                        {new Date(session.endTime).toLocaleTimeString()}
                       </TableCell>
                       <TableCell className="font-mono text-primary">
                         {formatTime(session.duration)}
