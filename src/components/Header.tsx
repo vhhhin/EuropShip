@@ -190,13 +190,15 @@ export default function NotificationDropdown() {
 }
 
 export function Header() {
+  const { user } = useAuth();
+  const isAgent = user?.role === 'AGENT' && user?.email === 'agent.euroship';
+
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-primary">
       <div className="flex items-center gap-4">
-        <HeaderSessionTimer />
-        <NotificationBell />
+        {isAgent && <HeaderSessionTimer />}
+        <NotificationDropdown />
       </div>
-      {/* ...existing code... */}
     </header>
   );
 }
