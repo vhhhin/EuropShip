@@ -1,4 +1,4 @@
-# EuroShip – Production Dashboard
+# EuropShip – Production Dashboard
 
 ⚠️ This repository contains the latest production version.
 Old versions have been deprecated.
