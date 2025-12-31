@@ -13,19 +13,21 @@ export default function SessionTimer() {
   if (!isAgent) return null;
 
   return (
-    <div className="flex items-center gap-2 ml-4">
-      <span className="font-mono text-sm text-foreground">{formatTime(elapsedTime)}</span>
+    <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-4">
+      <span className="font-mono text-xs sm:text-sm text-foreground whitespace-nowrap">
+        {formatTime(elapsedTime)}
+      </span>
       <Button
         size="sm"
         variant="ghost"
         onClick={isRunning ? stopTimer : startTimer}
-        className="h-8 w-8 p-0"
+        className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
         title={isRunning ? 'Stop Timer' : 'Start Timer'}
       >
         {isRunning ? (
-          <Square className="w-4 h-4 text-destructive" />
+          <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive" />
         ) : (
-          <Play className="w-4 h-4 text-success" />
+          <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success" />
         )}
       </Button>
     </div>

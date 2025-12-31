@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar';
@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 export default function DashboardLayout() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -26,10 +27,19 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <DashboardSidebar />
-      <div className="flex-1 flex flex-col ml-64">
-        <DashboardHeader />
-        <main className="flex-1 p-6 overflow-auto">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
+      <div className="flex-1 flex flex-col lg:ml-64 w-full lg:w-auto">
+        <DashboardHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">
           <Outlet />
         </main>
       </div>
