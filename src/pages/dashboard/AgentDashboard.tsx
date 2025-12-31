@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
 import { useAgents } from '@/contexts/AgentContext';
-import { useNotifications } from '@/contexts/NotificationContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,6 @@ import {
   Target,
   AlertCircle,
   ArrowRight,
-  Bell,
   Phone,
   UserPlus
 } from 'lucide-react';
@@ -45,9 +43,8 @@ const STATUS_CHART_COLORS: Record<string, string> = {
 export default function AgentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { getAllLeads } = useLeads();
+  const { getAllLeads, getAgentStats } = useLeads();
   const { getAgentByEmail } = useAgents();
-  const { notifications, unreadCount } = useNotifications();
 
   const allLeads = getAllLeads();
 
@@ -120,16 +117,6 @@ export default function AgentDashboard() {
       }));
   }, [agentStats.byStatus]);
 
-  // Source distribution
-  const sourceData = useMemo(() => {
-    return Object.entries(agentStats.bySource)
-      .filter(([_, count]) => count > 0)
-      .map(([source, count]) => ({
-        name: source.replace(' Request', '').replace(' Form', ''),
-        value: count,
-      }));
-  }, [agentStats.bySource]);
-
   // Daily tasks checklist
   const dailyTasks = useMemo(() => [
     { 
@@ -171,11 +158,6 @@ export default function AgentDashboard() {
     return myLeads.slice(0, 5);
   }, [myLeads]);
 
-  // Recent notifications (last 3)
-  const recentNotifications = useMemo(() => {
-    return notifications.filter(n => !n.isRead).slice(0, 3);
-  }, [notifications]);
-
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -187,6 +169,24 @@ export default function AgentDashboard() {
     return null;
   };
 
+  const agentStatsData = useMemo(() => getAgentStats(), [getAgentStats]);
+
+  // Format daily stats for display
+  const dailyStatsArray = useMemo(() => {
+    const entries = Object.entries(agentStatsData.dailyBySource)
+      .map(([date, sources]) => ({
+        date,
+        sources: Object.entries(sources).map(([source, count]) => ({
+          source,
+          count,
+        })),
+        total: Object.values(sources).reduce((sum, c) => sum + c, 0),
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
+
+    return entries.slice(0, 7); // Last 7 days
+  }, [agentStatsData.dailyBySource]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Header */}
@@ -197,21 +197,10 @@ export default function AgentDashboard() {
           </h1>
           <p className="text-muted-foreground text-sm">Here's your activity summary for today</p>
         </div>
-        <div className="flex gap-2">
-          {unreadCount > 0 && (
-            <Button variant="outline" size="sm" className="relative">
-              <Bell className="w-4 h-4 mr-2" />
-              Notifications
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-white text-xs rounded-full flex items-center justify-center">
-                {unreadCount}
-              </span>
-            </Button>
-          )}
-          <Button onClick={() => navigate('/dashboard/leads')} size="sm">
-            View My Leads
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
+        <Button onClick={() => navigate('/dashboard/leads')} size="sm">
+          View My Leads
+          <ArrowRight className="w-4 h-4 ml-2" />
+        </Button>
       </div>
 
       {/* Capacity Card */}
@@ -247,14 +236,15 @@ export default function AgentDashboard() {
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
+      {/* Updated Stats Grid - Add Total Leads */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass-card">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Total Leads</p>
-                <p className="text-2xl font-bold text-foreground">{agentStats.total}</p>
+                <p className="text-xs text-muted-foreground">My Leads</p>
+                <p className="text-2xl font-bold text-foreground">{agentStatsData.totalLeads}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Total assigned</p>
               </div>
               <div className="p-2 rounded-lg bg-primary/10">
                 <Users className="w-6 h-6 text-primary" />
@@ -302,6 +292,65 @@ export default function AgentDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* NEW: Daily Leads Breakdown Section */}
+      <Card className="glass-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            Daily Leads Activity (Last 7 Days)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {dailyStatsArray.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No daily activity data yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dailyStatsArray.map((day) => (
+                <div key={day.date} className="border border-border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
+                        {new Date(day.date).toLocaleDateString('en-US', { 
+                          weekday: 'short', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {day.total} lead{day.total !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {day.sources.map(({ source, count }) => {
+                      const sourceColor = SOURCE_COLORS[source as LeadSource];
+                      return (
+                        <div 
+                          key={source}
+                          className="flex items-center justify-between px-2 py-1 rounded bg-secondary/30"
+                        >
+                          <span className="text-xs text-muted-foreground truncate">
+                            {source.replace(' Request', '').replace(' Form', '')}
+                          </span>
+                          <Badge className={cn("ml-1 text-xs", sourceColor?.bg, sourceColor?.text)}>
+                            {count}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -457,48 +506,26 @@ export default function AgentDashboard() {
         </Card>
       </div>
 
-      {/* Alerts Section */}
-      {(agentStats.followUp > 0 || recentNotifications.length > 0) && (
-        <div className="space-y-3">
-          {agentStats.followUp > 0 && (
-            <Card className="glass-card border-warning/30 bg-warning/5">
-              <CardContent className="py-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="w-6 h-6 text-warning flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-foreground">Follow-up Required</p>
-                      <p className="text-sm text-muted-foreground">
-                        You have {agentStats.followUp} lead(s) that need follow-up
-                      </p>
-                    </div>
-                  </div>
-                  <Button onClick={() => navigate('/dashboard/leads?status=follow+up')} variant="outline" size="sm">
-                    View Leads
-                  </Button>
+      {/* Follow-up Alert - Only show if needed */}
+      {agentStats.followUp > 0 && (
+        <Card className="glass-card border-warning/30 bg-warning/5">
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-warning flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-foreground">Follow-up Required</p>
+                  <p className="text-sm text-muted-foreground">
+                    You have {agentStats.followUp} lead(s) that need follow-up
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {recentNotifications.length > 0 && (
-            <Card className="glass-card border-primary/30 bg-primary/5">
-              <CardContent className="py-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <Bell className="w-5 h-5 text-primary" />
-                  <p className="font-medium text-foreground">Recent Notifications</p>
-                </div>
-                <div className="space-y-2">
-                  {recentNotifications.map(notif => (
-                    <div key={notif.id} className="text-sm text-muted-foreground p-2 bg-secondary/30 rounded">
-                      {notif.message}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              </div>
+              <Button onClick={() => navigate('/dashboard/leads?status=follow+up')} variant="outline" size="sm">
+                View Leads
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

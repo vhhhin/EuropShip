@@ -35,38 +35,28 @@ export default function LeadDetailModal({ lead, isOpen, onClose, onUpdateStatus,
 
   if (!lead) return null;
 
-  const handleStatusChange = (status: LeadStatus) => {
+  // FIX BUG 2: Status change must update both local state AND call parent handler immediately
+  const handleStatusChange = (newStatus: string) => {
+    const status = newStatus as LeadStatus;
+    // Update local state for immediate UI feedback
     setSelectedStatus(status);
+    // Call the shared update function - this updates persistedData and triggers re-render
+    onUpdateStatus(lead.id, status);
   };
 
   const handleSave = () => {
-    let hasChanges = false;
-
-    if (selectedStatus && selectedStatus !== lead.status) {
-      onUpdateStatus(lead.id, selectedStatus);
-      hasChanges = true;
-      toast({
-        title: 'Status Updated',
-        description: `Lead status changed to "${selectedStatus}"`,
-      });
-    }
-    
-    if (newNote.trim()) {
-      onAddNote(lead.id, newNote.trim());
-      setLocalNotes(prev => [...prev, newNote.trim()]);
-      hasChanges = true;
-      toast({
-        title: 'Note Added',
-        description: 'Your note has been saved.',
-      });
-      setNewNote('');
-    }
-
-    if (!hasChanges) {
-      toast({
-        title: 'No Changes',
-        description: 'No changes were made.',
-      });
+    try {
+      if (newNote.trim()) {
+        onAddNote(lead.id, newNote.trim());
+        setLocalNotes(prev => [...prev, newNote.trim()]);
+        toast({
+          title: 'Note Added',
+          description: 'Your note has been saved.',
+        });
+        setNewNote('');
+      }
+    } catch (e) {
+      console.warn('[LeadDetailModal] Error saving:', e);
     }
     
     onClose();
@@ -136,7 +126,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, onUpdateStatus,
             {/* Update Status */}
             <div>
               <Label className="text-foreground mb-2 block">Update Status</Label>
-              <Select value={selectedStatus} onValueChange={(value) => handleStatusChange(value as LeadStatus)}>
+              <Select value={selectedStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-full bg-secondary border-border text-foreground">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>

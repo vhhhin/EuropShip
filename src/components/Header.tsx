@@ -60,31 +60,26 @@ export default function NotificationDropdown() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="flex items-center gap-4">
-        {/* Session Timer Component */}
-        <HeaderSessionTimer />
-
-        {/* Notification Bell Button */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={cn(
-            "relative p-2 rounded-lg transition-all duration-200",
-            "hover:bg-secondary text-muted-foreground hover:text-foreground",
-            isOpen && "bg-secondary text-foreground",
-            filteredUnreadCount > 0 && "animate-pulse" // Use filteredUnreadCount
-          )}
-          aria-label={`Notifications ${filteredUnreadCount > 0 ? `(${filteredUnreadCount} unread)` : ''}`}
-        >
-          <Bell className="w-5 h-5" />
-          
-          {/* Unread Badge */}
-          {filteredUnreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-destructive rounded-full animate-bounce">
-              {filteredUnreadCount > 9 ? '9+' : filteredUnreadCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Notification Bell Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "relative p-2 rounded-lg transition-all duration-200",
+          "hover:bg-secondary text-muted-foreground hover:text-foreground",
+          isOpen && "bg-secondary text-foreground",
+          filteredUnreadCount > 0 && "animate-pulse" // Use filteredUnreadCount
+        )}
+        aria-label={`Notifications ${filteredUnreadCount > 0 ? `(${filteredUnreadCount} unread)` : ''}`}
+      >
+        <Bell className="w-5 h-5" />
+        
+        {/* Unread Badge */}
+        {filteredUnreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-destructive rounded-full animate-bounce">
+            {filteredUnreadCount > 9 ? '9+' : filteredUnreadCount}
+          </span>
+        )}
+      </button>
 
       {/* Dropdown Panel */}
       {isOpen && (
@@ -191,5 +186,17 @@ export default function NotificationDropdown() {
         </div>
       )}
     </div>
+  );
+}
+
+export function Header() {
+  return (
+    <header className="flex items-center justify-between px-4 py-2 bg-primary">
+      <div className="flex items-center gap-4">
+        <HeaderSessionTimer />
+        <NotificationBell />
+      </div>
+      {/* ...existing code... */}
+    </header>
   );
 }

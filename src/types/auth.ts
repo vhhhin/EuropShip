@@ -37,7 +37,7 @@ export const USERS_DB: { username: string; passwordHash: string; user: User }[] 
       id: 'admin-001',
       username: 'admin.euroship',
       role: 'ADMIN',
-      displayName: 'EuroShip Admin'
+      displayName: 'EuropShip Admin'
     }
   },
   {
@@ -48,7 +48,7 @@ export const USERS_DB: { username: string; passwordHash: string; user: User }[] 
       id: 'agent-001',
       username: 'agent.euroship',
       role: 'AGENT',
-      displayName: 'EuroShip Agent'
+      displayName: 'EuropShip Agent' // <-- Correction ici
     }
   }
 ];

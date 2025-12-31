@@ -7,7 +7,8 @@ export type LeadStatus =
   | 'not interested'
   | 'qualified'
   | 'not qualified'
-  | 'meeting booked';
+  | 'meeting booked'
+  | 'closed';
 
 export const LEAD_STATUSES: LeadStatus[] = [
   'new',
@@ -17,13 +18,14 @@ export const LEAD_STATUSES: LeadStatus[] = [
   'not interested',
   'qualified',
   'not qualified',
-  'meeting booked'
+  'meeting booked',
+  'closed'
 ];
 
 // Meeting result options
-export type MeetingResult = 'missed' | 'not interested' | 'follow up';
+export type MeetingResult = 'missed' | 'not interested' | 'follow up' | 'closed';
 
-export const MEETING_RESULTS: MeetingResult[] = ['missed', 'not interested', 'follow up'];
+export const MEETING_RESULTS: MeetingResult[] = ['missed', 'not interested', 'follow up', 'closed'];
 
 // Lead sources - each tab in the Google Sheet
 export type LeadSource = 
@@ -72,7 +74,8 @@ export const STATUS_COLORS: Record<LeadStatus, { bg: string; text: string; borde
   'not interested': { bg: 'bg-destructive/20', text: 'text-destructive', border: 'border-destructive/30' },
   'qualified': { bg: 'bg-success/20', text: 'text-success', border: 'border-success/30' },
   'not qualified': { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-muted' },
-  'meeting booked': { bg: 'bg-success/20', text: 'text-success', border: 'border-success/30' }
+  'meeting booked': { bg: 'bg-success/20', text: 'text-success', border: 'border-success/30' },
+  'closed': { bg: 'bg-emerald-500/20', text: 'text-emerald-500', border: 'border-emerald-500/30' }
 };
 
 // Source color mapping

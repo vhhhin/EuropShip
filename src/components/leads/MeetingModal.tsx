@@ -1,5 +1,5 @@
 import React from 'react'; 
-import { Lead, LeadStatus, MeetingResult } from '@/types/lead';
+import { Lead, LeadStatus, MeetingResult, MEETING_RESULTS } from '@/types/lead';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,6 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, Clock, Save, X, Video } from 'lucide-react';
-import { useNotificationTriggers } from '@/hooks/useNotificationTriggers';
 
 interface MeetingModalProps {
   lead: Lead | null;
@@ -34,7 +33,6 @@ export default function MeetingModal({
   onUpdateStatus,
 }: MeetingModalProps) {
   const { toast } = useToast();
-  const { notifyMeetingBooked, notifyFollowUpRequired } = useNotificationTriggers();
   
   const [meetingDate, setMeetingDate] = React.useState('');
   const [meetingTime, setMeetingTime] = React.useState('');
@@ -43,7 +41,12 @@ export default function MeetingModal({
 
   React.useEffect(() => {
     if (lead) {
-      setMeetingDate(lead.meetingDate || '');
+      // FIX BUG 1: Extract date in YYYY-MM-DD format without timezone conversion
+      let dateValue = lead.meetingDate || '';
+      if (dateValue.includes('T')) {
+        dateValue = dateValue.split('T')[0];
+      }
+      setMeetingDate(dateValue);
       setMeetingTime(lead.meetingTime || '');
       setMeetingResult((lead.meetingResult as MeetingResult) || '');
       setPostMeetingNotes(lead.postMeetingNotes || '');
@@ -53,22 +56,17 @@ export default function MeetingModal({
   if (!lead) return null;
 
   const handleSave = () => {
-    // Save meeting details
+    // FIX BUG 1: Pass the date as-is from the input (YYYY-MM-DD format)
+    // Do NOT convert to Date object or use toISOString()
     onSetMeetingDetails(lead.id, {
-      meetingDate,
-      meetingTime,
-      meetingResult,
-      postMeetingNotes,
+      meetingDate: meetingDate,
+      meetingTime: meetingTime,
+      meetingResult: meetingResult || undefined,
+      postMeetingNotes: postMeetingNotes || undefined,
     });
 
     const leadName = String(lead['Name'] || lead['Full Name'] || lead['Email'] || `Lead ${lead.id}`);
 
-    // Trigger notification for meeting booking if date is set
-    if (meetingDate) {
-      notifyMeetingBooked(leadName, meetingDate);
-    }
-
-    // ✅ FIXED STATUS LOGIC
     if (meetingResult) {
       let newStatus: LeadStatus;
 
@@ -81,10 +79,9 @@ export default function MeetingModal({
           break;
         case 'follow up':
           newStatus = 'follow up';
-          notifyFollowUpRequired(leadName); // Notify for follow-up
           break;
         case 'closed':
-          newStatus = 'closed'; // ✅ CORRECT
+          newStatus = 'closed';
           break;
         default:
           newStatus = lead.status;
@@ -163,8 +160,17 @@ export default function MeetingModal({
                 <Calendar className="w-4 h-4" /> Schedule Meeting
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <Input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
-                <Input type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
+                {/* FIX BUG 1: Input type="date" returns YYYY-MM-DD format */}
+                <Input 
+                  type="date" 
+                  value={meetingDate} 
+                  onChange={(e) => setMeetingDate(e.target.value)} 
+                />
+                <Input 
+                  type="time" 
+                  value={meetingTime} 
+                  onChange={(e) => setMeetingTime(e.target.value)} 
+                />
               </div>
             </div>
 
@@ -179,10 +185,11 @@ export default function MeetingModal({
                   <SelectValue placeholder="Select meeting outcome" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="missed">Missed</SelectItem>
-                  <SelectItem value="not interested">Not Interested</SelectItem>
-                  <SelectItem value="follow up">Follow Up</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
+                  {MEETING_RESULTS.map((result) => (
+                    <SelectItem key={result} value={result}>
+                      {result.charAt(0).toUpperCase() + result.slice(1)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

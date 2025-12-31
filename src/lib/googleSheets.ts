@@ -57,10 +57,14 @@ export async function fetchSheetData(source: LeadSource): Promise<Lead[]> {
   const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodedSheetName}&headers=1`;
   
   console.log(`[GoogleSheets] Fetching ${source} from sheet: "${sheetName}"`);
-  console.log(`[GoogleSheets] URL: ${url}`);
   
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -126,7 +130,11 @@ export async function fetchSheetData(source: LeadSource): Promise<Lead[]> {
     
     return leads;
   } catch (error) {
-    console.error(`[GoogleSheets] Error fetching ${source}:`, error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`[GoogleSheets] Request timeout for ${source}`);
+    } else {
+      console.error(`[GoogleSheets] Error fetching ${source}:`, error);
+    }
     return [];
   }
 }

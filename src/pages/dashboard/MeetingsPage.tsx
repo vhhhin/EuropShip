@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useLeads } from '@/hooks/useLeads';
+import { useAuth } from '@/contexts/AuthContext';
 import { Lead, LeadStatus, SOURCE_COLORS } from '@/types/lead';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,7 @@ import MeetingModal from '@/components/leads/MeetingModal';
 import { Calendar, Video, Clock, ChevronRight } from 'lucide-react';
 
 export default function MeetingsPage() {
+  const { user } = useAuth();
   const { getMeetingBookedLeads, setMeetingDetails, updateStatus } = useLeads();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,6 +97,10 @@ export default function MeetingsPage() {
                     <TableHead className="text-muted-foreground">Source</TableHead>
                     <TableHead className="text-muted-foreground">Meeting Date</TableHead>
                     <TableHead className="text-muted-foreground">Meeting Time</TableHead>
+                    {/* Assigned Agent - Admin only */}
+                    {user?.role === 'ADMIN' && (
+                      <TableHead className="text-muted-foreground">Assigned</TableHead>
+                    )}
                     <TableHead className="text-muted-foreground w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -138,6 +144,12 @@ export default function MeetingsPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        {/* Assigned Agent - Admin only */}
+                        {user?.role === 'ADMIN' && (
+                          <TableCell className="text-muted-foreground">
+                            {lead.assignedAgent || '-'}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-success transition-colors" />
                         </TableCell>

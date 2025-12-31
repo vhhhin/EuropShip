@@ -33,8 +33,19 @@ type SortDirection = 'asc' | 'desc' | null;
 
 export default function LeadsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
+	const location = window.location; // For robust tab highlighting if needed
 	const { user } = useAuth();
-	const { getActiveLeads, getLeadsBySource, isLoading, refetch, updateStatus, addNote, getStats } = useLeads();
+	const { 
+		getActiveLeads, 
+		getLeadsBySource, 
+		isLoading, 
+		updateStatus, 
+		addNote, 
+		getStats, 
+		getDailyNewLeadsBySource,
+		getAllLeads,
+		leadsBySource
+	} = useLeads();
 	
 	const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,9 +55,81 @@ export default function LeadsPage() {
 	const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
 	const stats = getStats();
-	const activeSource = searchParams.get('source') || 'all';
+	
+	// 3. Get today's date in YYYY-MM-DD (local timezone)
+	const todayStr = useMemo(() => {
+		const now = new Date();
+		return now.toISOString().split('T')[0];
+	}, []);
 
-	// Handle tab change - update URL
+	// 🔁 LIVE daily new leads per source (from leadsBySource, not getAllLeads)
+	const dailyNewLeads = useMemo(() => {
+		if (!leadsBySource) return {
+			'Email Request': 0,
+			'Instagram Request': 0,
+			'Ecomvestors Form': 0,
+			'EuroShip Form': 0,
+		};
+
+		const counts = {
+			'Email Request': 0,
+			'Instagram Request': 0,
+			'Ecomvestors Form': 0,
+			'EuroShip Form': 0,
+		};
+
+		const allLeads = Object.values(leadsBySource).flat();
+
+		allLeads.forEach((lead) => {
+			// ---- SOURCE ----
+			const source = (lead.source || '').toLowerCase();
+
+			let canonicalSource: keyof typeof counts | null = null;
+			if (source.includes('email')) canonicalSource = 'Email Request';
+			else if (source.includes('instagram')) canonicalSource = 'Instagram Request';
+			else if (source.includes('ecomvestor')) canonicalSource = 'Ecomvestors Form';
+			else if (source.includes('euroship')) canonicalSource = 'EuroShip Form';
+
+			if (!canonicalSource) return;
+
+			// ---- DATE ----
+			const rawDate =
+				lead.Timestamp ||
+				lead.Date ||
+				lead.created_at ||
+				lead.Created ||
+				lead.createdAt;
+
+			if (!rawDate) return;
+
+			const parsed = new Date(rawDate);
+			if (isNaN(parsed.getTime())) return;
+
+			const leadDate = parsed.toISOString().split('T')[0];
+
+			if (leadDate === todayStr) {
+				counts[canonicalSource]++;
+			}
+		});
+
+		console.log('[AGENT][LIVE DAILY COUNTS]', counts);
+		return counts;
+	}, [leadsBySource, todayStr]);
+
+	// Always recalculate daily new leads per source for today
+	const activeSource = useMemo(() => {
+		const param = searchParams.get('source');
+		// Only allow known sources, fallback to 'all'
+		const valid = ['email', 'instagram', 'ecomvestors', 'euroship'];
+		return param && valid.includes(param) ? param : 'all';
+	}, [searchParams]);
+
+	// Filtrer les sources pour agent : on retire "all"
+	const visibleSourceConfigs = user?.role === 'AGENT'
+		? SOURCE_CONFIGS.filter(s => s.id !== 'all')
+		: SOURCE_CONFIGS;
+
+	// Handle tab change - update URL robustly
 	const handleTabChange = (value: string) => {
 		if (value === 'all') {
 			setSearchParams({});
@@ -65,7 +148,10 @@ export default function LeadsPage() {
 		setTimeout(() => setSelectedLead(null), 100);
 	}, []);
 
+	// CRITICAL: This handler uses the shared updateStatus from useLeads
 	const handleUpdateStatus = useCallback((leadId: string, status: LeadStatus) => {
+		// This updates persistedData and triggers updateTrigger
+		// which causes getMeetingBookedLeads to return fresh data
 		updateStatus(leadId, status);
 	}, [updateStatus]);
 
@@ -178,11 +264,15 @@ export default function LeadsPage() {
 		}
 	};
 
-	// Get source count
-	const getSourceCount = (fullName: LeadSource | null): number => {
-		if (!fullName) return stats.total;
-		return stats.bySource[fullName] || 0;
-	};
+	// CORRECTED: Get source count - All Sources shows TOTAL RÉEL
+	const getSourceCount = useCallback((fullName: LeadSource | null): number => {
+		if (!fullName) {
+			// All sources: count ALL leads (including meeting booked) - TOTAL RÉEL
+			return getAllLeads().length;
+		}
+		// Specific source: count leads from that source (excluding meeting booked)
+		return getLeadsBySource(fullName).filter(l => l.status !== 'meeting booked').length;
+	}, [getAllLeads, getLeadsBySource]);
 
 	// Format cell value for display
 	const formatCellValue = (value: unknown): string => {
@@ -212,34 +302,53 @@ export default function LeadsPage() {
 					<p className="text-muted-foreground">
 						{user?.role === 'ADMIN' ? 'View and manage all leads' : 'View and manage your assigned leads'}
 					</p>
+					{/* AGENT ONLY: Live daily new leads per source, always up-to-date */}
+					{user?.role === 'AGENT' && (
+						<div className="mt-2 text-sm text-foreground font-medium flex gap-6">
+							<span>Email: <span className="text-primary">{dailyNewLeads['Email Request']}</span></span>
+							<span>Instagram: <span className="text-primary">{dailyNewLeads['Instagram Request']}</span></span>
+							<span>Ecomvestors: <span className="text-primary">{dailyNewLeads['Ecomvestors Form']}</span></span>
+							<span>EuroShip: <span className="text-primary">{dailyNewLeads['EuroShip Form']}</span></span>
+						</div>
+					)}
 				</div>
-				<Button onClick={() => refetch()} disabled={isLoading} variant="outline" className="border-border">
+				{/* 🔥 REMOVE manual refresh button */}
+				{/* <Button onClick={() => refetch()} disabled={isLoading} variant="outline" className="border-border">
 					<RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
 					Refresh
-				</Button>
+				</Button> */}
 			</div>
 
-			{/* Source Tabs */}
+			{/* Source Tabs - Show counts that match sidebar */}
 			<Tabs value={activeSource} onValueChange={handleTabChange}>
 				<TabsList className="bg-secondary border border-border">
-					{SOURCE_CONFIGS.map(source => (
-						<TabsTrigger 
-							key={source.id} 
-							value={source.id}
-							className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-2"
-						>
-							{source.color && (
-								<span
-									className="w-2 h-2 rounded-full"
-									style={{ backgroundColor: source.color }}
-								/>
-							)}
-							{source.label}
-							<span className="text-xs opacity-70">
-								({getSourceCount(source.fullName)})
-							</span>
-						</TabsTrigger>
-					))}
+					{visibleSourceConfigs.map(source => {
+						// Robustly highlight the active tab
+						const isActive = activeSource === source.id;
+						return (
+							<TabsTrigger 
+								key={source.id} 
+								value={source.id}
+								className={
+									"flex items-center gap-2 " +
+									(isActive
+										? "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground bg-primary text-primary-foreground"
+										: "data-[state=inactive]:text-muted-foreground")
+								}
+							>
+								{source.color && (
+									<span
+										className="w-2 h-2 rounded-full"
+										style={{ backgroundColor: source.color }}
+									/>
+								)}
+								{source.label}
+								<span className="text-xs opacity-70">
+									({getSourceCount(source.fullName)})
+								</span>
+							</TabsTrigger>
+						);
+					})}
 				</TabsList>
 			</Tabs>
 
@@ -315,8 +424,10 @@ export default function LeadsPage() {
 											<th className="text-left px-4 py-3 text-muted-foreground font-medium text-sm">Source</th>
 											{/* Status Column */}
 											<th className="text-left px-4 py-3 text-muted-foreground font-medium text-sm">Status</th>
-											{/* Assigned Agent Column */}
-											<th className="text-left px-4 py-3 text-muted-foreground font-medium text-sm">Assigned</th>
+											{/* Assigned Agent Column - Admin only */}
+											{user?.role === 'ADMIN' && (
+												<th className="text-left px-4 py-3 text-muted-foreground font-medium text-sm">Assigned</th>
+											)}
 											{/* Action Column */}
 											<th className="w-10"></th>
 										</tr>
@@ -358,10 +469,12 @@ export default function LeadsPage() {
 															{lead.status}
 														</Badge>
 													</td>
-													{/* Assigned Agent */}
-													<td className="px-4 py-3 text-sm text-muted-foreground">
-														{lead.assignedAgent || '-'}
-													</td>
+													{/* Assigned Agent - Admin only */}
+													{user?.role === 'ADMIN' && (
+														<td className="px-4 py-3 text-sm text-muted-foreground">
+															{lead.assignedAgent || '-'}
+														</td>
+													)}
 													{/* Action */}
 													<td className="px-4 py-3">
 														<ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -378,7 +491,7 @@ export default function LeadsPage() {
 				</CardContent>
 			</Card>
 
-			{/* Lead Detail Modal */}
+			{/* Lead Detail Modal - MUST pass handleUpdateStatus which uses shared updateStatus */}
 			<LeadDetailModal 
 				lead={selectedLead}
 				isOpen={isModalOpen}

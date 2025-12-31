@@ -8,31 +8,13 @@ import { Play, Pause, Clock, Calendar, Timer, Users } from 'lucide-react';
 
 export default function TimeTrackingPage() {
   const { user } = useAuth();
-  const { 
-    isRunning, 
-    elapsedTime, 
-    startTimer, 
-    pauseTimer, 
-    getTodayTime, 
-    getAllSessions, 
-    getTimeByAgent,
-    formatTime 
-  } = useTimeTracking();
+  const { isRunning, elapsedTime, startTimer, pauseTimer, stopTimer, formatTime, sessions } = useTimeTracking();
 
   const isAdmin = user?.role === 'ADMIN';
-  const agentTimes = getTimeByAgent();
-  const allSessions = getAllSessions();
-  const todayTime = getTodayTime();
+  const isAgent = user?.role === 'AGENT' && user?.email === 'agent.euroship';
 
-  // Group sessions by date for current user
-  const userSessions = allSessions.filter(s => s.agentId === user?.id);
-  const sessionsByDate = userSessions.reduce((acc, session) => {
-    if (!acc[session.date]) {
-      acc[session.date] = [];
-    }
-    acc[session.date].push(session);
-    return acc;
-  }, {} as Record<string, typeof allSessions>);
+  // For admin, get all agent sessions (mock or from context, assuming sessions are per agent)
+  const allSessions = isAdmin ? sessions : sessions.filter(s => s.agentId === user?.id);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -45,7 +27,7 @@ export default function TimeTrackingPage() {
       </div>
 
       {/* Timer Section (for Agents) */}
-      {!isAdmin && (
+      {isAgent && (
         <Card className="glass-card glow-primary">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -82,7 +64,7 @@ export default function TimeTrackingPage() {
               <div className="text-center md:text-right">
                 <p className="text-sm text-muted-foreground mb-2">Today's Total</p>
                 <p className="text-3xl font-mono font-semibold text-primary">
-                  {formatTime(todayTime)}
+                  {formatTime(sessions.filter(s => s.date === new Date().toISOString().slice(0, 10)).reduce((sum, s) => sum + s.duration, 0))}
                 </p>
               </div>
             </div>
@@ -100,7 +82,7 @@ export default function TimeTrackingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {Object.keys(agentTimes).length === 0 ? (
+            {allSessions.length === 0 ? (
               <div className="text-center py-12">
                 <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No time tracking data available</p>
@@ -118,22 +100,27 @@ export default function TimeTrackingPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(agentTimes).map(([agentId, data]) => {
-                    const agentSessions = allSessions.filter(s => s.agentId === agentId);
-                    return (
-                      <TableRow key={agentId} className="border-border">
-                        <TableCell className="font-medium text-foreground">
-                          {data.agentName}
-                        </TableCell>
-                        <TableCell className="font-mono text-primary">
-                          {formatTime(data.totalSeconds)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {agentSessions.length} sessions
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {/* Group by agent */}
+                  {Object.entries(
+                    allSessions.reduce((acc, session) => {
+                      if (!acc[session.agentId]) acc[session.agentId] = { total: 0, count: 0, name: 'Agent' };
+                      acc[session.agentId].total += session.duration;
+                      acc[session.agentId].count += 1;
+                      return acc;
+                    }, {} as Record<string, { total: number; count: number; name: string }>)
+                  ).map(([agentId, data]) => (
+                    <TableRow key={agentId} className="border-border">
+                      <TableCell className="font-medium text-foreground">
+                        {data.name}
+                      </TableCell>
+                      <TableCell className="font-mono text-primary">
+                        {formatTime(data.total)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {data.count} sessions
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             )}
@@ -150,7 +137,7 @@ export default function TimeTrackingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(isAdmin ? allSessions : userSessions).length === 0 ? (
+          {allSessions.length === 0 ? (
             <div className="text-center py-12">
               <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No sessions recorded yet</p>
@@ -167,14 +154,14 @@ export default function TimeTrackingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(isAdmin ? allSessions : userSessions)
+                {allSessions
                   .sort((a, b) => b.startTime - a.startTime)
                   .slice(0, 20)
                   .map((session) => (
                     <TableRow key={session.id} className="border-border">
                       {isAdmin && (
                         <TableCell className="font-medium text-foreground">
-                          {session.agentName}
+                          Agent
                         </TableCell>
                       )}
                       <TableCell className="text-foreground">{session.date}</TableCell>
@@ -182,10 +169,7 @@ export default function TimeTrackingPage() {
                         {new Date(session.startTime).toLocaleTimeString()}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {session.endTime 
-                          ? new Date(session.endTime).toLocaleTimeString()
-                          : '-'
-                        }
+                        {new Date(session.endTime).toLocaleTimeString()}
                       </TableCell>
                       <TableCell className="font-mono text-primary">
                         {formatTime(session.duration)}

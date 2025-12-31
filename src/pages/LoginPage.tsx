@@ -66,7 +66,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">EuroShip Dashboard </CardTitle>
+            <CardTitle className="text-2xl font-bold">EuropShip Dashboard </CardTitle>
             <CardDescription className="text-muted-foreground">
               Lead Management Dashboard
             </CardDescription>

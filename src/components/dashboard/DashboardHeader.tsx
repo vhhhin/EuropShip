@@ -1,19 +1,42 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
-import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Bell, Clock, Play, Pause, Menu } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useTimeTracking } from '@/contexts/TimeTrackingContext'; // Direct import
 
 interface DashboardHeaderProps {
   onMenuClick?: () => void;
 }
 
+function SessionTimer() {
+  const { isRunning, elapsedTime, startTimer, pauseTimer, stopTimer, formatTime } = useTimeTracking();
+  return (
+    <div className="flex items-center bg-muted rounded px-3 py-1 ml-2">
+      <Clock className="w-4 h-4 mr-2" />
+      <span className="font-mono text-sm">{formatTime(elapsedTime)}</span>
+      {isRunning ? (
+        <>
+          <button onClick={pauseTimer} className="ml-2 text-yellow-400" title="Pause">
+            <Pause className="w-4 h-4" />
+          </button>
+          <button onClick={stopTimer} className="ml-1 text-red-400" title="Stop">
+            <svg width="16" height="16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="2"/></svg>
+          </button>
+        </>
+      ) : (
+        <button onClick={startTimer} className="ml-2 text-green-400" title="Start">
+          <Play className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
   const { user } = useAuth();
   const { refetch, isLoading } = useLeads();
-  const { isRunning, elapsedTime, startTimer, pauseTimer, formatTime, getTodayTime } = useTimeTracking();
 
   const handleRefresh = () => {
     refetch();
@@ -34,8 +57,9 @@ export default function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
           )}
         </div>
 
-        {/* Right Side - Notifications Only */}
+        {/* Right Side - Notifications and Timer */}
         <div className="flex items-center">
+          {user?.email === 'agent.euroship' && <SessionTimer />}
           <NotificationDropdown />
         </div>
       </div>
