@@ -14,7 +14,7 @@ export function useLeadDistribution() {
     getAgentByEmail 
   } = useAgents();
   
-  let addNotification: ((type: string, message: string) => void) | null = null;
+  let addNotification: ((type: string, message: string, extras?: { leadId?: string; agentId?: string }) => void) | null = null;
   try {
     const notifications = useNotifications();
     addNotification = notifications.addNotification;
@@ -87,14 +87,15 @@ export function useLeadDistribution() {
         incrementLeadCount(agent.id);
       }
 
-      // Get lead name for notification
-      const lead = allLeads.find(l => l.id === leadId);
-      const leadName = lead 
-        ? String(lead['Name'] || lead['Full Name'] || lead['Email'] || lead['Company'] || `Lead ${lead.id}`)
-        : 'New Lead';
+      // Get agent info for notification
+      const agentId = agent?.id || agentEmail;
 
       if (addNotification) {
-        addNotification('lead_assigned', `Lead "${leadName}" assigned to ${agentName}`);
+        // Send notification to the assigned agent only
+        addNotification('lead_assigned', 'A new lead has been assigned to you', {
+          leadId,
+          agentId,
+        });
       }
 
       console.log(`[Distribution] ✅ Assigned lead ${leadId} to ${agentName}`);
@@ -103,7 +104,7 @@ export function useLeadDistribution() {
       console.error(`[Distribution] ❌ Failed to assign lead ${leadId}:`, error);
       return false;
     }
-  }, [updateLead, allLeads, incrementLeadCount, getAgentByEmail, addNotification]);
+  }, [updateLead, incrementLeadCount, getAgentByEmail, addNotification]);
 
   // Main distribution function - distributes all unassigned leads
   const distributeUnassignedLeads = useCallback((): { distributed: number; remaining: number } => {

@@ -14,16 +14,16 @@ export default function NotificationDropdown() {
   const { user } = useAuth(); // Get user role
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
 
-  // Filter notifications based on user role
+  // Filter notifications - only show agent notifications (already filtered by context)
   const filteredNotifications = React.useMemo(() => {
-    if (user?.role === 'ADMIN') {
-      return notifications; // Admin sees all
-    } else if (user?.role === 'AGENT') {
-      // Agent sees only personal notifications related to their assigned leads
-      const allowedTypes = ['lead_assigned', 'meeting_booked', 'follow_up_required', 'lead_overdue'];
-      return notifications.filter(n => allowedTypes.includes(n.type));
+    if (user?.role === 'AGENT') {
+      // Notifications are already filtered by context for this agent
+      // Sort by most recent first
+      return [...notifications].sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
     }
-    return [];
+    return []; // No notifications for non-agents
   }, [notifications, user?.role]);
 
   // Compute filtered unread count
@@ -70,8 +70,7 @@ export default function NotificationDropdown() {
           className={cn(
             "relative p-2 rounded-lg transition-all duration-200",
             "hover:bg-secondary text-muted-foreground hover:text-foreground",
-            isOpen && "bg-secondary text-foreground",
-            filteredUnreadCount > 0 && "animate-pulse" // Use filteredUnreadCount
+            isOpen && "bg-secondary text-foreground"
           )}
           aria-label={`Notifications ${filteredUnreadCount > 0 ? `(${filteredUnreadCount} unread)` : ''}`}
         >
@@ -79,7 +78,7 @@ export default function NotificationDropdown() {
           
           {/* Unread Badge */}
           {filteredUnreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-destructive rounded-full animate-bounce">
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-destructive rounded-full">
               {filteredUnreadCount > 9 ? '9+' : filteredUnreadCount}
             </span>
           )}

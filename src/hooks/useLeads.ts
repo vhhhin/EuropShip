@@ -157,6 +157,13 @@ export function useLeads() {
   // CRITICAL FIX: Status update creates new state reference
   // Auto-assign agent when they set status to "meeting booked"
   const updateStatus = useCallback((leadId: string, status: LeadStatus) => {
+    const lead = mergedLeads.find(l => l.id === leadId);
+    const previousStatus = lead?.status;
+    const assignedAgent = lead?.assignedAgent || 
+      (status === 'meeting booked' && user?.role === 'AGENT'
+        ? user.email || user.username || user.displayName
+        : undefined);
+
     setPersistedData(prev => {
       const newData: Record<string, PersistedLeadData> = {
         ...prev,
@@ -174,7 +181,23 @@ export function useLeads() {
       return newData;
     });
     setUpdateCounter(c => c + 1);
-  }, [user]);
+
+    // Notify agent if status changed to "follow up"
+    if (status === 'follow up' && previousStatus !== 'follow up' && assignedAgent) {
+      try {
+        const { useNotifications } = require('@/contexts/NotificationContext');
+        const notifications = useNotifications();
+        if (notifications?.addNotification) {
+          notifications.addNotification('follow_up_required', 'A lead requires follow-up', {
+            leadId,
+            agentId: assignedAgent,
+          });
+        }
+      } catch {
+        // Notification context not available
+      }
+    }
+  }, [user, mergedLeads]);
 
   // Meeting details update
   const setMeetingDetails = useCallback((leadId: string, details: {
@@ -195,6 +218,10 @@ export function useLeads() {
       }
     }
     
+    // Get lead and agent info for notification
+    const lead = mergedLeads.find(l => l.id === leadId);
+    const assignedAgent = lead?.assignedAgent;
+    
     setPersistedData(prev => {
       const newData = {
         ...prev,
@@ -207,7 +234,23 @@ export function useLeads() {
       return newData;
     });
     setUpdateCounter(c => c + 1);
-  }, []);
+
+    // Notify agent if meeting is scheduled/updated
+    if (assignedAgent && (details.meetingDate || details.meetingTime)) {
+      try {
+        const { useNotifications } = require('@/contexts/NotificationContext');
+        const notifications = useNotifications();
+        if (notifications?.addNotification) {
+          notifications.addNotification('meeting_booked', 'A meeting has been scheduled or updated for one of your leads', {
+            leadId,
+            agentId: assignedAgent,
+          });
+        }
+      } catch {
+        // Notification context not available
+      }
+    }
+  }, [mergedLeads]);
 
   const getStats = useCallback(() => {
     const leads = getAllLeads();

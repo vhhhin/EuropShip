@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { AgentProvider } from '@/contexts/AgentContext';
 import { TimeTrackingProvider } from "@/contexts/TimeTrackingContext";
+import { useAgentNotifications } from '@/hooks/useAgentNotifications';
 import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardOverview from "./pages/dashboard/DashboardOverview";
@@ -22,6 +23,12 @@ import MeetingsAgendaPage from '@/pages/dashboard/MeetingsAgendaPage';
 
 const queryClient = new QueryClient();
 
+// Component to initialize agent notifications
+function AgentNotificationMonitor() {
+  useAgentNotifications();
+  return null;
+}
+
 const App = () => {
   // Ensure dark mode is always applied
   useEffect(() => {
@@ -35,6 +42,7 @@ const App = () => {
           <NotificationProvider>
             <AgentProvider>
               <TimeTrackingProvider>
+                <AgentNotificationMonitor />
                 <Toaster />
                 <Sonner />
                 <BrowserRouter>

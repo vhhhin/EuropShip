@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Notification, NotificationType } from '@/types/notification';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -41,12 +42,37 @@ function saveNotifications(notifications: Notification[]): void {
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>(loadNotifications);
+  const { user } = useAuth();
+  const [allNotifications, setAllNotifications] = useState<Notification[]>(loadNotifications);
 
   // Save to localStorage when notifications change
   useEffect(() => {
-    saveNotifications(notifications);
-  }, [notifications]);
+    saveNotifications(allNotifications);
+  }, [allNotifications]);
+
+  // Filter notifications for current agent only
+  const notifications = React.useMemo(() => {
+    if (!user || user.role !== 'AGENT') {
+      return []; // No notifications for non-agents
+    }
+    
+    // Only show notifications for this specific agent
+    return allNotifications.filter(n => {
+      // Agent-specific notification types
+      const agentTypes: NotificationType[] = ['lead_assigned', 'meeting_booked', 'follow_up_required', 'lead_overdue'];
+      if (!agentTypes.includes(n.type)) {
+        return false;
+      }
+      
+      // If notification has agentId, match it with current user
+      if (n.agentId) {
+        return n.agentId === user.id || n.agentId === user.email || n.agentId === user.username;
+      }
+      
+      // For notifications without agentId, include them (will be filtered by type)
+      return true;
+    });
+  }, [allNotifications, user]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -55,6 +81,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     message: string, 
     extras?: { leadId?: string; agentId?: string }
   ) => {
+    // Only create notifications for agent-specific types
+    const agentTypes: NotificationType[] = ['lead_assigned', 'meeting_booked', 'follow_up_required', 'lead_overdue'];
+    if (!agentTypes.includes(type)) {
+      return; // Don't create notifications for non-agent types
+    }
+
     const newNotification: Notification = {
       id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type,
@@ -64,35 +96,58 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       ...extras,
     };
 
-    setNotifications(prev => {
-      // Avoid duplicate notifications (same type and message within 1 minute)
+    setAllNotifications(prev => {
+      // Avoid duplicate notifications (same type, message, and agentId within 1 minute)
       const isDuplicate = prev.some(n => 
         n.type === type && 
         n.message === message && 
+        n.agentId === extras?.agentId &&
         (new Date().getTime() - new Date(n.timestamp).getTime()) < 60000
       );
       
       if (isDuplicate) return prev;
       
-      // Keep only last 50 notifications
-      const updated = [newNotification, ...prev].slice(0, 50);
+      // Keep only last 100 notifications (more for multiple agents)
+      const updated = [newNotification, ...prev].slice(0, 100);
       return updated;
     });
   }, []);
 
   const markAsRead = useCallback((id: string) => {
-    setNotifications(prev =>
+    setAllNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, isRead: true } : n))
     );
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  }, []);
+    if (!user || user.role !== 'AGENT') return;
+    
+    // Mark all agent notifications as read
+    setAllNotifications(prev =>
+      prev.map(n => {
+        const agentTypes: NotificationType[] = ['lead_assigned', 'meeting_booked', 'follow_up_required', 'lead_overdue'];
+        if (agentTypes.includes(n.type) && (!n.agentId || n.agentId === user.id || n.agentId === user.email || n.agentId === user.username)) {
+          return { ...n, isRead: true };
+        }
+        return n;
+      })
+    );
+  }, [user]);
 
   const clearNotifications = useCallback(() => {
-    setNotifications([]);
-  }, []);
+    if (!user || user.role !== 'AGENT') return;
+    
+    // Clear only agent notifications
+    setAllNotifications(prev =>
+      prev.filter(n => {
+        const agentTypes: NotificationType[] = ['lead_assigned', 'meeting_booked', 'follow_up_required', 'lead_overdue'];
+        if (agentTypes.includes(n.type) && (!n.agentId || n.agentId === user.id || n.agentId === user.email || n.agentId === user.username)) {
+          return false;
+        }
+        return true;
+      })
+    );
+  }, [user]);
 
   return (
     <NotificationContext.Provider

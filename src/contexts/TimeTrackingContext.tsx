@@ -43,11 +43,20 @@ function saveTimerState(agentId: string, state: { isRunning: boolean; elapsedTim
   }
 }
 
+function deduplicateSessions(sessions: Session[]): Session[] {
+  return sessions.filter(
+    (session, index, self) =>
+      index === self.findIndex(s => s.id === session.id)
+  );
+}
+
 function loadSessions(agentId: string): Session[] {
   try {
     const data = localStorage.getItem(`${SESSION_KEY_PREFIX}${agentId}`);
     if (data) {
-      return JSON.parse(data);
+      const sessions = JSON.parse(data);
+      // Deduplicate sessions when loading
+      return deduplicateSessions(sessions);
     }
   } catch (error) {
     console.error("Error loading sessions:", error);
@@ -57,7 +66,11 @@ function loadSessions(agentId: string): Session[] {
 
 function saveSessions(agentId: string, sessions: Session[]): void {
   try {
-    localStorage.setItem(`${SESSION_KEY_PREFIX}${agentId}`, JSON.stringify(sessions));
+    const uniqueSessions = sessions.filter(
+      (session, index, self) =>
+        index === self.findIndex(s => s.id === session.id)
+    );
+    localStorage.setItem(`${SESSION_KEY_PREFIX}${agentId}`, JSON.stringify(uniqueSessions));
   } catch (error) {
     console.error("Error saving sessions:", error);
   }
@@ -72,17 +85,20 @@ function getAllSessionsFromStorage(): Session[] {
         const data = localStorage.getItem(key);
         if (data) {
           try {
-            allSessions.push(...JSON.parse(data));
+            const sessions = JSON.parse(data);
+            allSessions.push(...sessions);
           } catch (e) {
             console.error("Error parsing sessions from key:", key, e);
           }
         }
       }
     }
+    // Deduplicate all sessions before returning
+    return deduplicateSessions(allSessions);
   } catch (error) {
     console.error("Error loading all sessions:", error);
   }
-  return allSessions;
+  return [];
 }
 
 export function TimeTrackingProvider({ children }: { children: ReactNode }) {
@@ -99,25 +115,7 @@ export function TimeTrackingProvider({ children }: { children: ReactNode }) {
   // Refs for timer management
   const sessionStartRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitializedRef = useRef(false);
-
-  // Initialize: Load timer state and sessions for agent
-  useEffect(() => {
-    if (!isAgent || !agentId || isInitializedRef.current) return;
-    
-    const timerState = loadTimerState(agentId);
-    setIsRunning(timerState.isRunning);
-    setElapsedTime(timerState.elapsedTime);
-    sessionStartRef.current = timerState.sessionStart;
-    setSessions(loadSessions(agentId));
-    
-    // Resume timer if it was running
-    if (timerState.isRunning && timerState.sessionStart) {
-      startInterval();
-    }
-    
-    isInitializedRef.current = true;
-  }, [isAgent, agentId]);
+  const initializedRef = useRef(false);
 
   // Timer interval management
   const startInterval = useCallback(() => {
@@ -132,6 +130,29 @@ export function TimeTrackingProvider({ children }: { children: ReactNode }) {
       }
     }, 1000);
   }, []);
+
+  // Initialize: Load timer state and sessions for agent
+  useEffect(() => {
+    if (initializedRef.current) return;
+    if (!isAgent || !agentId) return;
+    
+    initializedRef.current = true;
+    
+    const timerState = loadTimerState(agentId);
+    setIsRunning(timerState.isRunning);
+    setElapsedTime(timerState.elapsedTime);
+    sessionStartRef.current = timerState.sessionStart;
+    const loadedSessions = loadSessions(agentId);
+    const uniqueSessions = loadedSessions.filter(
+      (session, index, self) =>
+        index === self.findIndex(s => s.id === session.id)
+    );
+    setSessions(uniqueSessions);
+    
+    if (timerState.isRunning && timerState.sessionStart) {
+      startInterval();
+    }
+  }, [isAgent, agentId, startInterval]);
 
   const clearIntervalTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -184,9 +205,14 @@ export function TimeTrackingProvider({ children }: { children: ReactNode }) {
         };
         
         setSessions((prev) => {
+          if (prev.some(s => s.id === session.id)) return prev;
           const updated = [...prev, session];
-          saveSessions(agentId, updated);
-          return updated;
+          const uniqueSessions = updated.filter(
+            (s, index, self) =>
+              index === self.findIndex(se => se.id === s.id)
+          );
+          saveSessions(agentId, uniqueSessions);
+          return uniqueSessions;
         });
       }
     }
@@ -198,7 +224,7 @@ export function TimeTrackingProvider({ children }: { children: ReactNode }) {
 
   // Save timer state whenever it changes
   useEffect(() => {
-    if (!isAgent || !agentId || !isInitializedRef.current) return;
+    if (!isAgent || !agentId || !initializedRef.current) return;
     
     saveTimerState(agentId, {
       isRunning,
