@@ -304,12 +304,8 @@ export default function LeadsPage() {
 					</p>
 					{/* AGENT ONLY: Live daily new leads per source, always up-to-date */}
 					{user?.role === 'AGENT' && (
-						<div className="mt-2 text-sm text-foreground font-medium flex gap-6">
-							<span>Email: <span className="text-primary">{dailyNewLeads['Email Request']}</span></span>
-							<span>Instagram: <span className="text-primary">{dailyNewLeads['Instagram Request']}</span></span>
-							<span>Ecomvestors: <span className="text-primary">{dailyNewLeads['Ecomvestors Form']}</span></span>
-							<span>EuroShip: <span className="text-primary">{dailyNewLeads['EuroShip Form']}</span></span>
-						</div>
+						// SUPPRIMÉ : Ligne Email: 0 Instagram: 0 Ecomvestors: 0 EuroShip: 0
+						null
 					)}
 				</div>
 				{/* 🔥 REMOVE manual refresh button */}
