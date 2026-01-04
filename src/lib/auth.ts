@@ -1,123 +1,152 @@
-import { User, JWTPayload, USERS_DB, UserRole } from '@/types/auth';
+import { User } from '@/types/auth';
 
-const JWT_SECRET = 'euroship-saas-secret-key-2025';
-const TOKEN_KEY = 'euroship_jwt_token';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const TOKEN_KEY = 'euroship_auth_token';
 
-// Simple hash function for password verification
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+/**
+ * Request OTP
+ */
+export async function requestOtp(email: string): Promise<{ success: boolean; error?: string }> {
+  if (!email?.trim()) {
+    return { success: false, error: 'Email is required' };
   }
-  return Math.abs(hash).toString(16).padStart(32, '0').slice(0, 32);
-}
 
-// Verify password
-function verifyPassword(password: string, expectedHash: string): boolean {
-  const validPasswords: Record<string, string> = {
-    'Admin@EuroShip#2025': 'c7a5d24d8b9f2e1a3c4b5d6e7f8a9b0c',
-    'Agent@EuroShip#2025': 'd8b9f2e1a3c4b5d6e7f8a9b0c1d2e3f4'
-  };
-  
-  return validPasswords[password] === expectedHash;
-}
-
-// Create JWT token
-function createToken(user: User): string {
-  const payload: JWTPayload = {
-    userId: user.id,
-    username: user.username,
-    role: user.role,
-    iat: Date.now(),
-    exp: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-  };
-  
-  // Simple base64 encoding (in production, use proper JWT library with signing)
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payloadStr = btoa(JSON.stringify(payload));
-  const signature = btoa(simpleHash(header + '.' + payloadStr + '.' + JWT_SECRET));
-  
-  return `${header}.${payloadStr}.${signature}`;
-}
-
-// Decode and verify JWT token
-function decodeToken(token: string): JWTPayload | null {
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(atob(parts[1])) as JWTPayload;
-    
-    // Check expiration
-    if (payload.exp < Date.now()) {
+    const response = await fetch(`${API_BASE_URL}/auth/request-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.message || 'Failed to request OTP' };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('OTP request error:', err);
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+}
+
+/**
+ * Verify OTP and store JWT token
+ */
+export async function verifyOtp(
+  otp: string,
+  email: string
+): Promise<{ success: boolean; token?: string; user?: User; error?: string }> {
+  if (!email?.trim()) return { success: false, error: 'Email is required' };
+  if (!otp || otp.length !== 6) return { success: false, error: 'OTP must be 6 digits' };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim(), otp }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.message || 'Invalid OTP' };
+    }
+
+    if (data.success && data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
+      return {
+        success: true,
+        token: data.token,
+        user: data.user,
+      };
+    }
+
+    return { success: false, error: 'Authentication failed' };
+  } catch (err) {
+    console.error('OTP verification error:', err);
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+}
+
+/**
+ * Get current authenticated user
+ */
+export async function getCurrentUser(): Promise<User | null> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      localStorage.removeItem(TOKEN_KEY);
       return null;
     }
-    
-    return payload;
-  } catch {
-    return null;
-  }
-}
 
-// Login function
-export async function login(username: string, password: string): Promise<{ success: boolean; token?: string; user?: User; error?: string }> {
-  // Find user
-  const userRecord = USERS_DB.find(u => u.username === username);
-  
-  if (!userRecord) {
-    return { success: false, error: 'Invalid username or password' };
-  }
-  
-  // Verify password
-  if (!verifyPassword(password, userRecord.passwordHash)) {
-    return { success: false, error: 'Invalid username or password' };
-  }
-  
-  // Create token
-  const token = createToken(userRecord.user);
-  
-  // Store token
-  localStorage.setItem(TOKEN_KEY, token);
-  
-  return { success: true, token, user: userRecord.user };
-}
-
-// Logout function
-export function logout(): void {
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-// Get current user from stored token
-export function getCurrentUser(): User | null {
-  const token = localStorage.getItem(TOKEN_KEY);
-  
-  if (!token) return null;
-  
-  const payload = decodeToken(token);
-  if (!payload) {
+    const data = await response.json();
+    return data.user || null;
+  } catch (err) {
+    console.error('Get current user error:', err);
     localStorage.removeItem(TOKEN_KEY);
     return null;
   }
-  
-  // Find user from payload
-  const userRecord = USERS_DB.find(u => u.user.id === payload.userId);
-  return userRecord?.user || null;
 }
 
-// Check if user is authenticated
+/**
+ * Logout
+ */
+export async function logout(): Promise<void> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  }
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * Check if user is authenticated
+ */
 export function isAuthenticated(): boolean {
-  return getCurrentUser() !== null;
+  return localStorage.getItem(TOKEN_KEY) !== null;
 }
 
-// Check if user has specific role
-export function hasRole(role: UserRole): boolean {
-  const user = getCurrentUser();
-  return user?.role === role;
-}
-
-// Get stored token
+/**
+ * Get stored JWT token
+ */
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+/**
+ * Check if user has specific role
+ */
+export function hasRole(role: 'ADMIN' | 'AGENT'): boolean {
+  const userStr = localStorage.getItem('euroship_user');
+  if (!userStr) return false;
+  const user: User = JSON.parse(userStr);
+  return user.role.toUpperCase() === role;
 }

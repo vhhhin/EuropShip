@@ -123,7 +123,7 @@ export default function MeetingsListPage() {
               <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No meetings scheduled</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Set a lead's status to "Meeting Booked" to see it here
+                Leads transferred to Meetings will appear here permanently
               </p>
             </div>
           ) : (

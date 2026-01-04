@@ -3,8 +3,9 @@ export type UserRole = 'ADMIN' | 'AGENT';
 
 // User interface
 export interface User {
-  id: string;
-  username: string;
+  id: string | number;
+  email?: string;
+  username?: string;
   role: UserRole;
   displayName: string;
 }
@@ -23,7 +24,8 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  requestOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (otp: string, email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 

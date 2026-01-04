@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,7 @@ const LEAD_SUB_ITEMS = [
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
-  const { getStats, getActiveLeads, getLeadsBySource, getAllLeads } = useLeads();
+  const { getStats, getActiveLeads, getLeadsBySource, getAllLeads, getMeetingBookedLeads, updateTrigger } = useLeads();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -42,6 +42,11 @@ export default function DashboardLayout() {
 
   const isAgent = user?.role === 'AGENT';
   const stats = getStats();
+  // CRITICAL: Get fresh meetings data - depends on updateTrigger
+  // RÉUTILISATION EXACTE de la logique de MeetingsListPage.tsx (ligne 28-30)
+  const meetingLeads = useMemo(() => {
+    return getMeetingBookedLeads();
+  }, [getMeetingBookedLeads, updateTrigger]);
 
   // Get count for each source - CORRECTED FOR ALL SOURCES
   const getSourceCount = (fullName: LeadSource | null): number => {
@@ -49,8 +54,8 @@ export default function DashboardLayout() {
       // All sources: count ALL leads (including meeting booked) - TOTAL RÉEL
       return getAllLeads().length;
     }
-    // Specific source: count leads from that source (excluding meeting booked)
-    return getLeadsBySource(fullName).filter(l => l.status !== 'meeting booked').length;
+    // Specific source: count leads from that source (excluding leads in Meetings table)
+    return getLeadsBySource(fullName).filter(l => !l.hasMeeting).length;
   };
 
   const toggleExpand = (id: string) => {
@@ -70,7 +75,8 @@ export default function DashboardLayout() {
     label: string,
     path: string,
     Icon: React.ElementType,
-    children?: { id: string; label: string; path: string; icon: React.ElementType }[]
+    children?: { id: string; label: string; path: string; icon: React.ElementType }[],
+    count?: number
   ) => {
     const hasChildren = children && children.length > 0;
     const isExpanded = expandedItems.includes(id);
@@ -83,14 +89,24 @@ export default function DashboardLayout() {
           <button
             onClick={() => toggleExpand(id)}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+              "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
               "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
               (isActive || isChildActive) && "bg-primary/10 text-primary"
             )}
           >
-            <Icon className="w-5 h-5 flex-shrink-0" />
-            <span className="flex-1 text-left text-sm font-medium">{label}</span>
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <div className="flex items-center gap-3">
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span className="flex-1 text-left text-sm font-medium">{label}</span>
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+            {count !== undefined && (
+              <span className={cn(
+                "text-xs px-1.5 py-0.5 rounded font-medium",
+                (isActive || isChildActive) ? "bg-primary/30" : "bg-muted"
+              )}>
+                {count}
+              </span>
+            )}
           </button>
 
           {isExpanded && (
@@ -126,13 +142,15 @@ export default function DashboardLayout() {
         end={path === '/dashboard'}
         onClick={() => setMobileMenuOpen(false)}
         className={({ isActive: linkActive }) => cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+          "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
           "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
           linkActive && "bg-primary/10 text-primary font-medium"
         )}
       >
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        <span className="text-sm">{label}</span>
+        <div className="flex items-center gap-3">
+          <Icon className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm">{label}</span>
+        </div>
       </NavLink>
     );
   };

@@ -116,11 +116,9 @@ export default function MeetingsAgenda() {
 
   const handleUpdateStatus = useCallback((leadId: string, status: LeadStatus) => {
     updateStatus(leadId, status);
-    // Close modal after status change as the lead might no longer be "meeting booked"
-    if (status !== 'meeting booked') {
-      closeModal();
-    }
-  }, [updateStatus, closeModal]);
+    // RÈGLE MÉTIER : Le lead reste dans Meetings même si le statut change
+    // Ne pas fermer le modal automatiquement
+  }, [updateStatus]);
 
   const isToday = (date: Date) => formatLocalDate(date) === formatLocalDate(new Date());
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

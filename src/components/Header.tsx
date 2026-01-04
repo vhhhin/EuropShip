@@ -191,7 +191,9 @@ export default function NotificationDropdown() {
 
 export function Header() {
   const { user } = useAuth();
-  const isAgent = user?.role === 'AGENT' && user?.email === 'agent.euroship';
+  // RÈGLE MÉTIER : Utiliser uniquement user.role depuis la base de données
+  // Aucun email ne doit être hardcodé
+  const isAgent = user?.role === 'AGENT';
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-primary">

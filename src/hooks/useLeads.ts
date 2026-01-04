@@ -14,6 +14,7 @@ interface PersistedLeadData {
   meetingTime?: string;
   meetingResult?: string;
   postMeetingNotes?: string;
+  hasMeeting?: boolean; // Flag indiquant que le lead appartient au tableau Meetings (indépendant du statut)
 }
 
 // --- LocalStorage helpers ---
@@ -78,6 +79,7 @@ export function useLeads() {
         meetingTime: persisted.meetingTime ?? lead.meetingTime,
         meetingResult: persisted.meetingResult ?? lead.meetingResult,
         postMeetingNotes: persisted.postMeetingNotes ?? lead.postMeetingNotes,
+        hasMeeting: persisted.hasMeeting ?? false, // Ajouter le flag hasMeeting
       } as Lead;
     });
 
@@ -115,10 +117,12 @@ export function useLeads() {
     [mergedLeads]
   );
 
-  const getActiveLeads = useCallback(() => getAllLeads().filter(l => l.status !== 'meeting booked'), [getAllLeads]);
+  const getActiveLeads = useCallback(() => getAllLeads().filter(l => !l.hasMeeting), [getAllLeads]);
 
+  // RÈGLE MÉTIER : Les leads avec hasMeeting=true restent TOUJOURS dans le tableau Meetings,
+  // indépendamment de leur statut. hasMeeting est un flag permanent, pas un simple statut.
   const getMeetingBookedLeads = useCallback(() => {
-    const allMeetings = mergedLeads.filter(l => l.status === 'meeting booked');
+    const allMeetings = mergedLeads.filter(l => l.hasMeeting === true);
     if (user?.role === 'AGENT') {
       return allMeetings.filter(l =>
         [user.username, user.displayName, user.email].includes(l.assignedAgent ?? '')
@@ -157,11 +161,17 @@ export function useLeads() {
           : undefined);
 
       setPersistedData(prev => {
+        const currentData = prev[leadId] || {};
+        // RÈGLE MÉTIER : Si le statut devient "meeting booked", activer hasMeeting
+        // Si hasMeeting est déjà true, le conserver (ne jamais le remettre à false)
+        const shouldSetHasMeeting = status === 'meeting booked' || currentData.hasMeeting === true;
+        
         const newData = {
           ...prev,
           [leadId]: {
             ...prev[leadId],
             status,
+            hasMeeting: shouldSetHasMeeting ? true : (currentData.hasMeeting ?? false),
             assignedAgent: status === 'meeting booked' && user?.role === 'AGENT' ? assignedAgent : prev[leadId]?.assignedAgent,
           },
         };
@@ -179,7 +189,17 @@ export function useLeads() {
       if (details.meetingDate?.includes('T')) sanitizedDetails.meetingDate = details.meetingDate.split('T')[0];
 
       setPersistedData(prev => {
-        const newData = { ...prev, [leadId]: { ...prev[leadId], ...sanitizedDetails } };
+        const currentData = prev[leadId] || {};
+        // RÈGLE MÉTIER : Définir des détails de meeting active automatiquement hasMeeting=true
+        // Si hasMeeting est déjà true, le conserver
+        const newData = { 
+          ...prev, 
+          [leadId]: { 
+            ...prev[leadId], 
+            ...sanitizedDetails,
+            hasMeeting: true, // Activer le flag hasMeeting quand on définit des détails de meeting
+          } 
+        };
         savePersistedData(newData);
         return newData;
       });
@@ -269,6 +289,7 @@ export function useLeads() {
     getLeadsBySource,
     getActiveLeads,
     getMeetingBookedLeads,
+    mergedLeads, // Exposer mergedLeads pour permettre un calcul réactif direct du compteur
     updateLead,
     addNote,
     updateStatus,

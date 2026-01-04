@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, AuthContextType } from '@/types/auth';
-import { login as authLogin, logout as authLogout, getCurrentUser } from '@/lib/auth';
+import { requestOtp as authRequestOtp, verifyOtp as authVerifyOtp, logout as authLogout, getCurrentUser } from '@/lib/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -10,15 +10,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check for existing session
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    const checkAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Auth check error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkAuth();
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const requestOtp = useCallback(async (email: string) => {
     setIsLoading(true);
     try {
-      const result = await authLogin(username, password);
+      const result = await authRequestOtp(email);
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (otp: string, email: string) => {
+    setIsLoading(true);
+    try {
+      const result = await authVerifyOtp(otp, email);
       if (result.success && result.user) {
         setUser(result.user);
         return { success: true };
@@ -29,8 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    authLogout();
+  const logout = useCallback(async () => {
+    await authLogout();
     setUser(null);
   }, []);
 
@@ -38,7 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     isAuthenticated: !!user,
     isLoading,
-    login,
+    requestOtp,
+    verifyOtp,
     logout
   };
 

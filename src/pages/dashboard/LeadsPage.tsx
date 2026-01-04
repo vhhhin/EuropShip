@@ -165,7 +165,8 @@ export default function LeadsPage() {
 		const currentConfig = SOURCE_CONFIGS.find(s => s.id === activeSource);
 		
 		if (currentConfig && currentConfig.fullName) {
-			leads = getLeadsBySource(currentConfig.fullName).filter(l => l.status !== 'meeting booked');
+			// Exclure les leads qui appartiennent au tableau Meetings (hasMeeting=true)
+			leads = getLeadsBySource(currentConfig.fullName).filter(l => !l.hasMeeting);
 		} else {
 			leads = getActiveLeads();
 		}
@@ -270,8 +271,8 @@ export default function LeadsPage() {
 			// All sources: count ALL leads (including meeting booked) - TOTAL RÉEL
 			return getAllLeads().length;
 		}
-		// Specific source: count leads from that source (excluding meeting booked)
-		return getLeadsBySource(fullName).filter(l => l.status !== 'meeting booked').length;
+		// Specific source: count leads from that source (excluding leads in Meetings table)
+		return getLeadsBySource(fullName).filter(l => !l.hasMeeting).length;
 	}, [getAllLeads, getLeadsBySource]);
 
 	// Format cell value for display

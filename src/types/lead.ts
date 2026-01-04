@@ -52,6 +52,7 @@ export interface Lead {
   meetingTime?: string;
   meetingResult?: MeetingResult;
   postMeetingNotes?: string;
+  hasMeeting?: boolean; // Flag indiquant que le lead appartient au tableau Meetings (indépendant du statut)
   // Dynamic fields from sheet - any column can be added
   [key: string]: unknown;
 }

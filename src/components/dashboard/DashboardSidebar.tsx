@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
@@ -35,7 +35,7 @@ const LEAD_SUB_ITEMS = [
 
 export default function DashboardSidebar({ isOpen = false, onClose }: DashboardSidebarProps) {
   const { user, logout } = useAuth();
-  const { getStats, getMeetingBookedLeads, getActiveLeads, getLeadsBySource, getAllLeads } = useLeads();
+  const { getStats, getMeetingBookedLeads, getActiveLeads, getLeadsBySource, getAllLeads, mergedLeads, updateTrigger } = useLeads();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [isLeadsExpanded, setIsLeadsExpanded] = useState(true);
@@ -49,7 +49,11 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stats = getStats();
-  const meetingLeads = getMeetingBookedLeads();
+  // CRITICAL: Get fresh meetings data - depends on updateTrigger
+  // RÉUTILISATION EXACTE de la logique de MeetingsListPage.tsx (ligne 28-30)
+  const meetingLeads = useMemo(() => {
+    return getMeetingBookedLeads();
+  }, [getMeetingBookedLeads, updateTrigger]);
   const isLeadsActive = location.pathname.startsWith('/dashboard/leads');
   const isMeetingsActive = location.pathname.startsWith('/dashboard/meetings');
   const isAgent = user?.role === 'AGENT';
@@ -63,8 +67,8 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
       // All sources: TOTAL de TOUS les leads (Email + Instagram + Ecomvestors + EuroShip)
       return getAllLeads().length; // ✅ Ceci retourne le TOTAL RÉEL de TOUS les leads
     }
-    // Specific source: leads de cette source (sauf meeting booked)
-    return getLeadsBySource(fullName).filter(l => l.status !== 'meeting booked').length;
+    // Specific source: leads de cette source (sauf ceux dans le tableau Meetings)
+    return getLeadsBySource(fullName).filter(l => !l.hasMeeting).length;
   };
 
   return (
@@ -220,19 +224,11 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
               <Calendar className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="font-medium text-sm sm:text-base">Meetings</span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className={cn(
-                "text-xs px-1 sm:px-1.5 py-0.5 rounded flex-shrink-0",
-                isMeetingsActive ? "bg-white/20" : "bg-muted"
-              )}>
-                {meetingLeads.length}
-              </span>
-              {isMeetingsExpanded ? (
-                <ChevronDown className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <ChevronRight className="w-4 h-4 flex-shrink-0" />
-              )}
-            </div>
+            {isMeetingsExpanded ? (
+              <ChevronDown className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
+            )}
           </button>
 
           {/* MEETINGS SUB-SECTIONS: List and Agenda (same for Agent and Admin) */}

@@ -26,10 +26,11 @@ export function useLeadDistribution() {
   const distributionInProgress = useRef(false);
 
   // Get unassigned leads (not assigned to any agent, and not closed/not interested)
+  // Exclure les leads qui sont dans le tableau Meetings (hasMeeting=true)
   const getUnassignedLeads = useCallback((): Lead[] => {
     return allLeads.filter(lead => 
       !lead.assignedAgent && 
-      lead.status !== 'meeting booked' &&
+      !lead.hasMeeting &&
       lead.status !== 'not interested' &&
       lead.status !== 'not qualified'
     );
